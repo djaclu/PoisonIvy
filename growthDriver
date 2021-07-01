@@ -1,0 +1,402 @@
+import rhinoscriptsyntax as rs
+import Rhino.Geometry as rh
+import random
+import math
+import string
+import ghpythonlib.treehelpers as th
+
+#class and property definitions_______________________________________
+class Node:
+    def __init__(self, xyz, parent):
+        self.xyz = xyz
+        self.parent = parent
+       
+class Branch(list):
+    def __init__(self, sNode):
+        super(Branch, self).__init__(sNode)
+        self.ov = [0,0,0]
+        self.gen = 0
+        self.age = 0
+        self.regime = False
+        self.killfence = kb
+        self.history = [0,0,0]
+        self.trajectory = [0,0,0]
+
+        
+def Properties():
+    return {i:data(i) for i in xrange(0, maxGen + 1)}
+    
+def data(i):
+    cF, oF, rF, fF, gF, hF = 1, 1, 1, 1, 1, 1
+    
+    bRate = round(bSize * (f**i)) #<-------Review
+    maxAge = round(16 * (f**i))#<-------Review
+    
+    return {"cF":cF, "oF":oF, "rF":rF, "fF":fF,"gF":gF,"hF":hF,\
+    "R": True if i>0 else False, "thornRate": 1,  "bRate":max(4, bRate), "maxAge": max(1,maxAge)}#<-------Review
+
+
+# vector definitions_______________________________________________________
+       
+def chargeVector():
+    
+    chargeFactor = properties[segment.gen]["cF"]
+    
+    chargevectors = []
+    
+    if segment.regime * properties[segment.gen]["R"]:
+        pass
+    else:
+        pass
+        
+    for point in charges:
+        v = rs.VectorSubtract(point, node.xyz)
+        v = v * (1/(rs.VectorLength(v)))
+        chargevectors.append(v)
+    
+    d = rs.Distance(node.xyz, segment[0])
+    
+    if d == 0:
+        d = 1
+        
+    return [j for j in [sum(i) for i in zip(*chargevectors)]]
+    
+
+def orthoVector(node):
+    
+    orthoFactor = properties[segment.gen]["oF"]
+    
+    if segment.regime * properties[segment.gen]["R"]:
+        pass
+    else:
+        pass
+        
+    for seed in seeds:
+        if segment[0] == seed:
+            return [0,0,0]
+        else:
+            d = rs.Distance(node, segment[0])
+            
+            if d == 0:
+                d = 1
+            
+            return [i for i in segment.ov]
+            
+            
+def randomVector():
+    
+    randomFactor = properties[segment.gen]["rF"]
+    
+    if segment.regime * properties[segment.gen]["R"]:
+        hmin, hmax, vmin, vmax = -0.4, 0.4, -0.80, 0.80#<-------Review
+    else:
+        hmin, hmax, vmin, vmax = -0.5, 0.5, -1.0, 1.0#<-------Review
+    
+    randomVector = rs.VectorUnitize([random.uniform(hmin,hmax),random.uniform(vmin,vmax),0])
+    
+    return randomVector
+    
+        
+def frameVector(node):
+    
+    frameFactor = properties[segment.gen]["fF"]    
+    frameVectors = []
+    
+    if segment.regime * properties[segment.gen]["R"]:
+        pass
+    else:
+        pass
+    
+    if len(frames) == 0:
+        return [0,0,0]
+        
+    else:
+        for f in frames:
+            curveparam = rs.CurveClosestPoint(f, node)
+            curvepoint = rs.EvaluateCurve(f, curveparam)
+            d = rs.Distance(node, curvepoint)
+            if d == 0:
+                print "d = 0"
+                return [0,0,0]
+            tangentVector = rs.CurveTangent(f, curveparam) * frameFactor * 1/(d**5)
+            frameVectors.append(tangentVector)
+        return [sum(i) for i in zip(*frameVectors)]
+        
+    
+def gravityVector():
+    
+    gravityFactor = properties[segment.gen]["gF"]
+    
+    if segment.regime * properties[segment.gen]["R"]:
+        pass
+    else:
+        pass
+    
+    if rs.Distance(node.xyz, segment[0]) == 0:
+        return [0,0,0]
+    else:
+        gF = 0.01
+        g = [0,-1 * gF, 0]
+        
+        lV = [i - j for i, j in zip(segment[len(segment)-1], segment[0])]
+        d = rs.Distance(segment[len(segment)-1], segment[0])
+        
+        theta = rs.VectorAngle(g,lV)
+        
+        torque = [i * d * math.sin(theta) for i in g]
+        torque = rs.VectorUnitize(torque)
+        return torque
+        
+def hVector(node):
+    
+    historicalFactor = properties[segment.gen]["hF"]
+    
+    hVectors = []
+    
+    if segment.regime * properties[segment.gen]["R"]:
+        pass
+    else:
+        pass
+    
+    if segment.index(node) <= 6:
+        return segment.history
+    else:
+        for i in xrange(0,7):
+            presedingVector = rs.VectorCreate(segment[len(segment)-1-i],segment[len(segment)-2-i])
+            presedingVector = [j * (f**i) for j in presedingVector]
+            hVectors.append(presedingVector)
+
+        w = sum([f**i for i in xrange(0,7)])
+            
+        hVector = rs.VectorUnitize([sum(k)/w for k in zip(*hVectors)])
+        
+        return hVector
+            
+
+
+#growth functions_________________________________________________________________________________
+            
+def bifurcation(segment):
+    if segment.gen <= (maxGen-1) and segment.age <= properties[segment.gen]["maxAge"]:
+        if segment.regime * properties[segment.gen]["R"]:
+            min, max = 50, 50#<-------Review
+            
+        else:
+            min, max = properties[segment.gen]["bRate"], properties[segment.gen]["bRate"]+1#<-------Review
+                
+        if len(segment)%random.randint(min,max) == 0:
+            plant.append(segment)
+            
+            if node.xyz != segment[len(segment)-1]:
+                lw2.append(0)
+            else:
+                lw2.append(1)
+                
+            lw.append(segment.gen)
+            thornGrowth(segment, properties[segment.gen]["thornRate"])
+            
+            anc[node.xyz] = node.parent
+            segments.remove(segment)
+            
+            #passing bifurcation length
+            
+            #primary growth___________________________________________________________
+            ss = Branch([node.xyz])
+            ss.ov = segment.ov
+            ss.gen = segment.gen
+            ss.age = segment.age + 1
+            ss.regime = segment.regime
+            ss.killfence = segment.killfence
+            ss.history = rs.VectorUnitize([i - j for i,j in zip(segment[len(segment)-1],segment[len(segment)-2])])
+            segments.append(ss)
+        
+            #secondary growth_________________________________________________________
+            ss = Branch([node.xyz])
+            #ss.ov = [i - j for i, j in zip(ss[0], anc[ss[0]])]
+            ss.ov = [i - j for i, j in zip(ss[0], segment[len(segment)-5])]
+            ss.ov = rs.VectorRotate(ss.ov, 90.0 * random.choice([-1.0,1.0]), [0,0,1])
+            ss.ov = rs.VectorUnitize(ss.ov)
+            ss.gen = segment.gen + 1
+            ss.regime = segment.regime
+            ss.killfence = segment.killfence
+            segments.append(ss)
+        else:
+            pass
+    else:
+        #plant.append(segment)
+        #lw.append(segment.gen)
+        #anc[node.xyz] = node.parent
+        segments.remove(segment)
+        
+        
+def collision(segment):
+    coordinates = rh.Point3d(segment[len(segment)-1])
+    
+    cW = 0.10#<-------Review
+    oW = 0.15
+    rW = 0.35
+    hW = 0.40
+    gW = 0.00
+    
+    
+    v = [(cV * cW) + (oV * oW) + (rV * rW) + (hV * hW) + (gV * gW)\
+    for cV, oV, rV, hV, gV in zip(\
+    chargeVector(),
+    orthoVector(node.xyz),
+    randomVector(),
+    hVector(node.xyz),
+    gravityVector())]
+    
+    #if segments.index(segment) == 1:
+        #print "\n", "cV:", chargeVector(node.xyz,charges)
+        #print "oV:", orthoVector(node.xyz)
+        #print "rV:", randomVector()
+        #print "hV:", hVector(node.xyz), "\n"
+
+    ixy = rs.PointArrayClosestPoint(cArray, rs.PointAdd(coordinates, v))#<---CollisionCounting
+    
+    if XYindex[cArray[ixy]] <= 400 or\
+       segment.gen <= 1 or\
+       (segment.regime == True and XYindex[cArray[ixy]] < 2000):#<---CollisionCounting
+           
+           v = [i * Factor for i in v]
+           avgV.append(v)
+           coordinates = rs.PointAdd(coordinates,v)
+    else:
+        #if rW * 2 >= 8:
+            #return rh.Point3d(segment[len(segment)-1])
+        #else:
+            #coordinates = collision(segment, rW * 2)
+        pass
+        
+    return coordinates
+    
+def thornGrowth(segment, thornRate):
+        
+    if segment.gen < 2:
+        for i in range(0,thornRate):
+            thorn = segment[random.randint(0,len(segment)-1)]
+            #thorns.append(thorn)
+            #thornAngles.append([i - j for i,j in zip(thorn.xyz, thorn.parent)])
+    else:
+        pass
+                   
+
+#global initializations_______________________________________
+segments = []
+plant = []
+lw = []
+lw2 = []
+zones = []
+sgen = [1, 1, 0]
+thorns = []
+thornAngles = []
+
+XYindex = {}
+anc = {}
+
+f = 0.61803436641
+t = 0
+avgV = []
+a = []
+
+bSize = 152
+maxGen = 6
+Factor = 2.15
+
+properties = Properties()
+
+genprint = 0
+for i in properties:
+    print genprint,": ",properties[i]
+    genprint = genprint + 1
+
+for centroid in cArray:#<---CollisionCounting
+    XYindex[centroid] = 0#<---CollisionCounting
+
+if len(sgen) == len(seeds):
+    pass
+else:
+    sgen = [0 for i in seeds]
+
+for seed, sg in zip(seeds, sgen):
+    s = Branch([seed])
+    s.gen = sg
+    segments.append(s)
+    anc[seed] = seed
+
+
+    
+#global growth_________________________________________
+while len(segments) > 0:
+    for segment in segments:
+        
+        node = Node(segment[len(segment)-1], segment[0])
+        node.xyz = collision(segment)
+        
+        segment.regime = False
+        
+        for zone in z:
+            if rs.PointInPlanarClosedCurve(node.xyz, zone) == 1:
+                segment.regime = True
+                if segment.gen > 2:
+                    segment.killfence = zone
+        
+        killStatus = rs.PointInPlanarClosedCurve(node.xyz, segment.killfence)
+        
+        if killStatus == 1 and (node.xyz != segment[len(segment)-1]):
+            
+            segment.append(node.xyz)
+            ixy = rs.PointArrayClosestPoint(cArray, node.xyz)#<---CollisionCounting
+            XYindex[cArray[ixy]] = XYindex[cArray[ixy]] + 1#<---CollisionCounting
+            bifurcation(segment)
+            
+        else:
+            
+            if len(segment) > 1 :
+                plant.append(segment)
+                
+                if node.xyz != segment[len(segment)-1]:
+                    lw2.append(0)
+                else:
+                    lw2.append(1)
+                    
+                lw.append(segment.gen)
+                thornGrowth(segment, properties[segment.gen]["thornRate"])
+                
+                segments.remove(segment)
+            else:
+                segments.remove(segment)
+            
+    t = t + 1
+    
+    #conversion check
+    if len(segments) > 3000 or len(plant) > 10000:
+        print "branch break"
+        break
+
+
+#print and outputs____________________________
+
+print "\n","Time: ", t
+print "Segments: ",len(lw),"\n"
+
+xComp = 0
+yComp = 0
+
+for ve in avgV:
+    xComp = abs(ve[0]) + xComp
+    yComp = abs(ve[1]) + yComp
+    
+xComp = xComp/len(avgV)
+yComp = yComp/len(avgV)
+
+hyp = math.sqrt(xComp**2 +yComp**2)
+
+print "Average Vector: ",hyp
+
+
+for centroid in cArray:
+    a.append(XYindex[centroid])
+
+plant = th.list_to_tree(plant)
